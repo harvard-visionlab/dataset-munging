@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # https://github.com/hendrycks/natural-adv-examples?tab=readme-ov-file
-# chmod u+x ./imagenet-a.sh
-# ./imagenet-a.sh /home/jovyan/work/DataExactitudeBigData/DataSets/ImageSets/imagenet-a
-# ./imagenet-a.sh /home/jovyan/work/DataExactitudeBigData/DataSets/ImageSets/imagenet-a --decompress
+# chmod u+x ./imagenet-o.sh
+# ./imagenet-o.sh /home/jovyan/work/DataExactitudeBigData/DataSets/ImageSets/imagenet-o
+# ./imagenet-o.sh /home/jovyan/work/DataExactitudeBigData/DataSets/ImageSets/imagenet-o --decompress
 
 # Function to display usage
 usage() {
@@ -35,9 +35,10 @@ fi
 # Change to ROOT_DIR
 cd "$ROOT_DIR" || { echo "Failed to change directory to $ROOT_DIR"; exit 1; }
 
-# Download imagenet-a.tar
-FILENAME=imagenet-a.tar
+# Download imagenet-o.tar
+FILENAME=imagenet-o.tar
 wget -c --quiet --show-progress https://people.eecs.berkeley.edu/~hendrycks/$FILENAME
+
 echo "Download completed in $ROOT_DIR"
 
 # Decompress the file if --decompress flag is set
@@ -48,14 +49,23 @@ if [ "$DECOMPRESS" = true ]; then
 fi
 
 # Compute SHA256 hash and rename the file
-HASH=$(sha256sum imagenet-a.tar | awk '{print $1}')
+HASH=$(sha256sum imagenet-o.tar | awk '{print $1}')
 HASH_PREFIX=${HASH:0:10}
-NEW_FILENAME="imagenet-a-$HASH_PREFIX.tar"
-mv imagenet-a.tar "$NEW_FILENAME"
+NEW_FILENAME="imagenet-o-$HASH_PREFIX.tar"
+mv imagenet-o.tar "$NEW_FILENAME"
 echo "Renamed file to $NEW_FILENAME"
 
-# Upload to Wasabi S3 bucket
-echo "Uploading to s3 bucket..."
-aws s3 cp "$NEW_FILENAME" s3://visionlab-datasets/imagenet-a/"$NEW_FILENAME" --profile wasabi-admin --size-only
+# Check if file size has changed before uploading
+LOCAL_SIZE=$(stat -c%s "$NEW_FILENAME")
+REMOTE_SIZE=$(aws s3api head-object --bucket visionlab-datasets --key imagenet-o/"$NEW_FILENAME" --profile wasabi-admin --query 'ContentLength' --output text 2>/dev/null)
+echo "LOCAL_SIZE=$LOCAL_SIZE"
+echo "REMOTE_SIZE=$REMOTE_SIZE"
 
-echo "File uploaded to s3://visionlab-datasets/imagenet-a/$NEW_FILENAME"
+if [ "$LOCAL_SIZE" != "$REMOTE_SIZE" ]; then
+  # Upload to Wasabi S3 bucket
+  echo "Uploading to s3 bucket..."
+  aws s3 cp "$NEW_FILENAME" s3://visionlab-datasets/imagenet-o/"$NEW_FILENAME" --profile wasabi-admin
+  echo "File uploaded to s3://visionlab-datasets/imagenet-o/$NEW_FILENAME"
+else
+  echo "File size has not changed. Skipping upload."
+fi
